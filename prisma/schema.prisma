@@ -1,0 +1,205 @@
+// Sprout data model — kids' routine, chore & reward hub.
+// SQLite by default; swap `provider`/`url` for Postgres later with zero code changes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Household + profiles
+// ---------------------------------------------------------------------------
+
+model Household {
+  id        String    @id @default(cuid())
+  name      String    @default("Our Family")
+  // Parent admin PIN (hashed). Gate for the /parent area on shared devices.
+  parentPin String?
+  createdAt DateTime  @default(now())
+  profiles  Profile[]
+  rewards   Reward[]
+}
+
+enum Role {
+  CHILD
+  TEEN
+  PARENT
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  name      String
+  role      Role     @default(CHILD)
+  // Personalisation
+  avatar    String   @default("fox")     // avatar key -> static asset
+  theme     String   @default("sunrise") // colour theme key
+  sound     String   @default("chime")   // celebration sound key
+  music     String?                       // optional per-profile background track
+
+  // Running star balance (denormalised for fast kiosk reads; ledger is source of truth)
+  stars     Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  routines    Routine[]
+  starEntries StarEntry[]
+  redemptions Redemption[]
+  reminders   Reminder[]
+
+  @@index([householdId])
+}
+
+// ---------------------------------------------------------------------------
+// Routines & tasks
+// ---------------------------------------------------------------------------
+
+enum RoutineSlot {
+  AM
+  PM
+  ANYTIME
+}
+
+model Routine {
+  id        String      @id @default(cuid())
+  profileId String
+  profile   Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name      String                       // e.g. "Morning Routine"
+  slot      RoutineSlot @default(AM)
+  // Days of week this routine is active: comma list "0,1,2,3,4" (0 = Sunday).
+  activeDays String     @default("0,1,2,3,4,5,6")
+  order     Int         @default(0)
+  // Holiday / pause mode — hides the routine without deleting it.
+  snoozed   Boolean     @default(false)
+
+  tasks     Task[]
+
+  @@index([profileId])
+}
+
+enum TaskType {
+  CHECKLIST    // simple tick-off
+  TIMED        // has a countdown duration the child runs
+  NOTIFICATION // fires a prompt/voice reminder at a set time
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  routineId String
+  routine   Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  title       String
+  icon        String   @default("star")  // pictographic icon for pre-readers
+  type        TaskType @default(CHECKLIST)
+  order       Int      @default(0)
+  stars       Int      @default(1)        // reward value on completion
+
+  // TIMED tasks: how long the child has / the timer runs (seconds).
+  durationSec Int?
+  // NOTIFICATION / TIMED tasks: local time-of-day "HH:MM" to prompt.
+  promptTime  String?
+
+  completions TaskCompletion[]
+
+  @@index([routineId])
+}
+
+// One row per task per calendar day it is completed — gives history + prevents
+// double-claiming stars for the same day.
+model TaskCompletion {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  // Calendar day in local time, stored as "YYYY-MM-DD".
+  day         String
+  completedAt DateTime @default(now())
+
+  @@unique([taskId, day])
+  @@index([day])
+}
+
+// ---------------------------------------------------------------------------
+// Stars ledger & rewards
+// ---------------------------------------------------------------------------
+
+enum StarReason {
+  TASK
+  BONUS    // parent-granted
+  PENALTY  // parent-deducted
+  REDEEM   // spent on a reward
+}
+
+model StarEntry {
+  id        String     @id @default(cuid())
+  profileId String
+  profile   Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  amount    Int                    // positive = earned, negative = spent/penalty
+  reason    StarReason
+  note      String?
+  createdAt DateTime   @default(now())
+
+  @@index([profileId])
+}
+
+model Reward {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  title     String
+  icon      String   @default("gift")
+  cost      Int                          // star cost
+  active    Boolean  @default(true)
+
+  redemptions Redemption[]
+
+  @@index([householdId])
+}
+
+enum RedemptionStatus {
+  REQUESTED
+  APPROVED
+  FULFILLED
+  DENIED
+}
+
+model Redemption {
+  id        String           @id @default(cuid())
+  rewardId  String
+  reward    Reward           @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  status    RedemptionStatus @default(REQUESTED)
+  costAtTime Int                            // snapshot of cost when redeemed
+  createdAt DateTime         @default(now())
+
+  @@index([profileId])
+  @@index([rewardId])
+}
+
+// ---------------------------------------------------------------------------
+// Standalone date reminders (birthdays, appointments, "library day")
+// ---------------------------------------------------------------------------
+
+model Reminder {
+  id        String   @id @default(cuid())
+  profileId String?
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title     String
+  icon      String   @default("calendar")
+  // ISO date "YYYY-MM-DD" the reminder is for.
+  date      String
+  notified  Boolean  @default(false)
+
+  @@index([date])
+}

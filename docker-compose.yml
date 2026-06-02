@@ -1,0 +1,21 @@
+services:
+  sprout:
+    build: .
+    container_name: sprout
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/data/sprout.db
+      # Set to 1 on first run to load demo family, then back to 0.
+      - SPROUT_SEED=0
+      # Optional self-hosted push notifications:
+      # - NTFY_URL=https://ntfy.your.domain
+      # - NTFY_TOPIC=sprout
+      # - NTFY_TOKEN=tk_xxx
+    volumes:
+      - sprout-data:/data
+
+volumes:
+  sprout-data:

@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --touch: 64px; /* minimum touch target for small fingers */
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Baloo 2', Nunito, system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Big, friendly tap targets everywhere on the kiosk */
+.tap {
+  min-height: var(--touch);
+  min-width: var(--touch);
+}
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.pop { animation: pop 350ms ease-out; }
