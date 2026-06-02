@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { enhance } from '$app/forms';
   const links = [
     { href: '/parent', label: 'Dashboard', icon: '📊' },
     { href: '/parent/profiles', label: 'Kids', icon: '👧' },
@@ -22,7 +23,16 @@
       <span>{l.icon}</span><span class="hidden sm:inline">{l.label}</span>
     </a>
   {/each}
-  <a href="/" class="tap rounded-xl px-4 flex items-center gap-2 font-bold text-gray-400 hover:bg-gray-100 ml-auto">
-    Kiosk →
-  </a>
+  {#if page.data.pinSet}
+    <form method="POST" action="/parent/settings?/lock" use:enhance class="ml-auto">
+      <button class="tap rounded-xl px-4 flex items-center gap-2 font-bold text-gray-500 hover:bg-gray-100" title="Lock parent area">🔒 <span class="hidden sm:inline">Lock</span></button>
+    </form>
+    <a href="/" class="tap rounded-xl px-4 flex items-center gap-2 font-bold text-gray-400 hover:bg-gray-100">
+      Kiosk →
+    </a>
+  {:else}
+    <a href="/" class="tap rounded-xl px-4 flex items-center gap-2 font-bold text-gray-400 hover:bg-gray-100 ml-auto">
+      Kiosk →
+    </a>
+  {/if}
 </nav>

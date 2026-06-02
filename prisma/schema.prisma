@@ -19,6 +19,9 @@ model Household {
   name      String    @default("Our Family")
   // Parent admin PIN (hashed). Gate for the /parent area on shared devices.
   parentPin String?
+  // How long a parent stays unlocked after entering the PIN, in minutes.
+  // 0 = lock every time (session cookie, forgotten when the browser closes).
+  sessionMinutes Int  @default(480)
   createdAt DateTime  @default(now())
   profiles  Profile[]
   rewards   Reward[]

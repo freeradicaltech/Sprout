@@ -14,6 +14,8 @@
   let addRoutine = $state(false);
   let addTaskFor = $state<string | null>(null);
   let newTaskType = $state('CHECKLIST');
+  let editTaskId = $state<string | null>(null);
+  let editTaskType = $state('CHECKLIST');
 </script>
 
 <svelte:head><title>{data.profile.name} — Edit</title></svelte:head>
@@ -98,7 +100,18 @@
       </h3>
       <span class="text-sm text-gray-400">{dayLabel(routine.activeDays)}</span>
       {#if routine.snoozed}<span class="text-xs bg-amber-100 text-amber-600 rounded-full px-2 py-0.5 font-bold">snoozed</span>{/if}
-      <div class="ml-auto flex gap-2">
+      <div class="ml-auto flex gap-2 items-center flex-wrap">
+        {#if data.others.length}
+          <form method="POST" action="?/copyRoutine" use:enhance class="flex gap-1 items-center">
+            <input type="hidden" name="routineId" value={routine.id} />
+            <select name="target" class="rounded-lg border-2 border-gray-200 px-2 py-1 text-sm" title="Copy this routine to…">
+              <option value="">Copy to…</option>
+              {#each data.others as o (o.id)}<option value={o.id}>{o.name}</option>{/each}
+              {#if data.others.length > 1}<option value="ALL">All other kids</option>{/if}
+            </select>
+            <button class="tap rounded-lg bg-ocean-soft text-ocean px-3 text-sm font-bold">Copy</button>
+          </form>
+        {/if}
         <form method="POST" action="?/toggleSnooze" use:enhance>
           <input type="hidden" name="routineId" value={routine.id} />
           <button class="tap rounded-lg bg-gray-100 px-3 text-sm font-bold text-gray-600">{routine.snoozed ? 'Resume' : 'Snooze'}</button>
@@ -112,18 +125,56 @@
 
     <div class="space-y-2">
       {#each routine.tasks as task (task.id)}
-        <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-2">
-          <TaskIcon icon={task.icon} size={28} />
-          <span class="font-bold text-gray-700">{task.title}</span>
-          <span class="text-xs text-gray-400">
-            {task.type === 'TIMED' ? `⏱ ${(task.durationSec ?? 0) / 60}m` : task.type === 'NOTIFICATION' ? `🔔 ${task.promptTime ?? ''}` : ''}
-          </span>
-          <span class="ml-auto text-amber-500 font-bold">+{task.stars}⭐</span>
-          <form method="POST" action="?/deleteTask" use:enhance>
+        {#if editTaskId === task.id}
+          <form method="POST" action="?/updateTask" use:enhance={() => async ({ update }) => { await update({ reset: false }); editTaskId = null; }}
+            class="bg-sunrise-soft/40 rounded-xl p-3 space-y-3">
             <input type="hidden" name="taskId" value={task.id} />
-            <button class="tap rounded-lg bg-red-50 text-red-400 px-3 font-bold">✕</button>
+            <div class="flex gap-2 flex-wrap">
+              <input name="title" value={task.title} required class="flex-1 min-w-[140px] rounded-xl border-2 border-gray-200 p-2" />
+              <input name="stars" type="number" value={task.stars} min="0" class="w-16 rounded-xl border-2 border-gray-200 p-2 text-center" title="stars" />
+            </div>
+            <div class="flex flex-wrap gap-2">
+              {#each data.icons as ic (ic)}
+                <label class="cursor-pointer">
+                  <input type="radio" name="icon" value={ic} checked={ic === task.icon} class="peer sr-only" />
+                  <span class="block rounded-lg p-1 peer-checked:ring-2 ring-sunrise"><TaskIcon icon={ic} size={26} /></span>
+                </label>
+              {/each}
+            </div>
+            <div class="flex gap-2 flex-wrap items-center">
+              <select name="type" bind:value={editTaskType} class="rounded-xl border-2 border-gray-200 p-2">
+                <option value="CHECKLIST">✅ Checklist</option>
+                <option value="TIMED">⏱ Timed</option>
+                <option value="NOTIFICATION">🔔 Reminder</option>
+              </select>
+              {#if editTaskType === 'TIMED'}
+                <input name="durationMin" type="number" value={(task.durationSec ?? 600) / 60} min="1" class="w-20 rounded-xl border-2 border-gray-200 p-2" title="minutes" />
+                <span class="text-sm text-gray-400">min</span>
+              {/if}
+              {#if editTaskType === 'TIMED' || editTaskType === 'NOTIFICATION'}
+                <input name="promptTime" type="time" value={task.promptTime ?? ''} class="rounded-xl border-2 border-gray-200 p-2" title="prompt time" />
+              {/if}
+            </div>
+            <div class="flex gap-2">
+              <button class="tap rounded-xl bg-forest text-white px-6 font-bold">Save</button>
+              <button type="button" class="tap rounded-xl bg-gray-100 text-gray-600 px-4 font-bold" onclick={() => (editTaskId = null)}>Cancel</button>
+            </div>
           </form>
-        </div>
+        {:else}
+          <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-2">
+            <TaskIcon icon={task.icon} size={28} />
+            <span class="font-bold text-gray-700">{task.title}</span>
+            <span class="text-xs text-gray-400">
+              {task.type === 'TIMED' ? `⏱ ${(task.durationSec ?? 0) / 60}m${task.promptTime ? ` · 🔔 ${task.promptTime}` : ''}` : task.type === 'NOTIFICATION' ? `🔔 ${task.promptTime ?? ''}` : ''}
+            </span>
+            <span class="ml-auto text-amber-500 font-bold">+{task.stars}⭐</span>
+            <button class="tap rounded-lg bg-gray-100 text-gray-600 px-3 font-bold" onclick={() => { editTaskId = task.id; editTaskType = task.type; }}>✎</button>
+            <form method="POST" action="?/deleteTask" use:enhance>
+              <input type="hidden" name="taskId" value={task.id} />
+              <button class="tap rounded-lg bg-red-50 text-red-400 px-3 font-bold">✕</button>
+            </form>
+          </div>
+        {/if}
       {/each}
       {#if routine.tasks.length === 0}<p class="text-sm text-gray-400">No tasks yet.</p>{/if}
     </div>

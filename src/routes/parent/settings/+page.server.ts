@@ -1,10 +1,15 @@
 import { db } from '$lib/server/db';
 import { fail } from '@sveltejs/kit';
+import { setParentCookie, clearParentCookie } from '$lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
   const h = await db.household.findFirst();
-  return { name: h?.name ?? 'Our Family', pinSet: !!h?.parentPin };
+  return {
+    name: h?.name ?? 'Our Family',
+    pinSet: !!h?.parentPin,
+    sessionMinutes: h?.sessionMinutes ?? 480
+  };
 };
 
 async function household() {
@@ -31,18 +36,22 @@ export const actions: Actions = {
     const h = await household();
     await db.household.update({ where: { id: h.id }, data: { parentPin: pin || null } });
     // Keep current session unlocked after changing the PIN.
-    cookies.set('sprout_parent', '1', {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.SPROUT_SECURE_COOKIE === '1',
-      maxAge: 60 * 60 * 8
-    });
+    setParentCookie(cookies, h.sessionMinutes);
     return { ok: true, pinUpdated: true, cleared: !pin };
   },
 
+  setSession: async ({ request, cookies }) => {
+    const minutes = Number((await request.formData()).get('sessionMinutes') ?? 480);
+    if (!Number.isFinite(minutes) || minutes < 0) return fail(400, { error: 'Invalid timeout' });
+    const h = await household();
+    await db.household.update({ where: { id: h.id }, data: { sessionMinutes: minutes } });
+    // Re-issue the current session cookie under the new policy.
+    setParentCookie(cookies, minutes);
+    return { ok: true, sessionUpdated: true };
+  },
+
   lock: async ({ cookies }) => {
-    cookies.delete('sprout_parent', { path: '/' });
+    clearParentCookie(cookies);
     return { ok: true, locked: true };
   }
 };

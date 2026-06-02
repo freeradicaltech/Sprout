@@ -142,8 +142,32 @@
     }
   }
 
+  async function uncomplete(task: KioskTask) {
+    if (!task.done) return;
+    if (!confirm(`Undo "${task.title}"?`)) return;
+    task.done = false; // optimistic
+    stars -= task.stars;
+    speak(`Okay, ${task.title} is not done yet.`);
+
+    const res = await fetch('/api/uncomplete', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ taskId: task.id, profileId: data.profile.id })
+    });
+    if (!res.ok) {
+      task.done = true; // rollback
+      stars += task.stars;
+    } else {
+      const j = await res.json();
+      if (typeof j.stars === 'number') stars = j.stars;
+    }
+  }
+
   function onTaskClick(task: KioskTask) {
-    if (task.done) return;
+    if (task.done) {
+      uncomplete(task);
+      return;
+    }
     if (task.type === 'TIMED') startTimer(task);
     else complete(task);
   }
@@ -276,6 +300,7 @@
             <span class="text-xl font-bold text-gray-800 text-center">{task.title}</span>
             {#if task.done}
               <span class="text-3xl">✅</span>
+              <span class="text-xs text-gray-400 font-bold">tap to undo</span>
             {:else if task.type === 'TIMED'}
               <span class="text-ocean font-bold">⏱ {task.durationSec ? fmt(task.durationSec) : '1:00'}</span>
               <span class="text-amber-500 font-bold text-sm">+{task.stars} ⭐</span>
