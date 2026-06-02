@@ -54,6 +54,31 @@
       speak(`Amazing ${data.profile.name}! You finished everything!`);
     }
   }
+
+  let shopOpen = $state(false);
+  let message = $state('');
+
+  async function redeem(reward: { id: string; title: string; cost: number }) {
+    if (stars < reward.cost) {
+      message = `You need ${reward.cost - stars} more ⭐ for ${reward.title}`;
+      speak(`Almost there! Keep earning stars.`);
+      return;
+    }
+    const res = await fetch('/api/redeem', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rewardId: reward.id, profileId: data.profile.id })
+    });
+    if (res.ok) {
+      const j = await res.json();
+      if (typeof j.stars === 'number') stars = j.stars;
+      confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+      speak(`Yay! You asked for ${reward.title}. Ask a grown-up!`);
+      message = `🎉 Requested "${reward.title}" — ask a grown-up!`;
+    } else {
+      message = 'Could not redeem right now.';
+    }
+  }
 </script>
 
 <svelte:head><title>{data.profile.name} — Sprout</title></svelte:head>
@@ -65,10 +90,40 @@
       <Avatar key={data.profile.avatar} size={64} />
       <h1 class="text-3xl font-extrabold text-gray-800">Hi {data.profile.name}!</h1>
     </div>
-    <div class="tap rounded-2xl bg-amber-100 px-5 flex items-center text-2xl font-extrabold text-amber-600 shadow">
-      ⭐ {stars}
-    </div>
+    <button
+      class="tap rounded-2xl bg-amber-100 px-5 flex items-center text-2xl font-extrabold text-amber-600 shadow active:scale-95"
+      onclick={() => (shopOpen = !shopOpen)}
+    >
+      ⭐ {stars} 🎁
+    </button>
   </header>
+
+  {#if shopOpen}
+    <section class="rounded-3xl bg-white shadow-lg p-5 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-2xl font-extrabold text-grape">🎁 Reward Shop</h2>
+        <button class="tap rounded-xl bg-gray-100 px-4 font-bold text-gray-500" onclick={() => (shopOpen = false)}>Close</button>
+      </div>
+      {#if message}<p class="text-lg font-bold text-amber-600 mb-3">{message}</p>{/if}
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {#each data.rewards as reward (reward.id)}
+          <button
+            class={`tap rounded-2xl p-4 flex flex-col items-center gap-2 shadow active:scale-95 transition ${
+              stars >= reward.cost ? 'bg-grape-soft' : 'bg-gray-100 opacity-70'
+            }`}
+            onclick={() => redeem(reward)}
+          >
+            <TaskIcon icon={reward.icon} size={44} />
+            <span class="font-bold text-gray-800 text-center">{reward.title}</span>
+            <span class="text-amber-500 font-bold">{reward.cost} ⭐</span>
+          </button>
+        {/each}
+        {#if data.rewards.length === 0}
+          <p class="col-span-full text-gray-400 text-center">No rewards yet.</p>
+        {/if}
+      </div>
+    </section>
+  {/if}
 
   <!-- Progress bar -->
   <div class="mb-6">

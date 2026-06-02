@@ -101,9 +101,12 @@ src/lib/server/             db, stars ledger, ntfy notify
 
 ## Roadmap (to Nelli parity and beyond)
 
-- [ ] Parent CRUD UI: profiles, routines, tasks, rewards, reminders, task duplication
+- [x] Parent CRUD UI: profiles, routines, tasks, rewards, reminders
+- [x] Reward approval / deny (with star refund) flow in the dashboard
+- [x] Kiosk reward shop — kids spend stars; bonus/penalty stars from parent
+- [x] Parent settings: family name, set/change/remove PIN, lock session
 - [ ] Timed-task countdown UI + scheduled NOTIFICATION voice prompts (service worker)
-- [ ] Reward approval / fulfilment flow in the dashboard
+- [ ] Task duplication across kids; reorder routines/tasks (drag handle)
 - [ ] Themes, per-profile music & richer avatars (SVG/Lottie)
 - [ ] Live multi-device sync (SSE/WebSocket) so several tablets stay current
 - [ ] History & streaks view; weekly summary notification

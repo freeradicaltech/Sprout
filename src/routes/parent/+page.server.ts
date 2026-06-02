@@ -1,6 +1,9 @@
 import { db } from '$lib/server/db';
 import { localDay } from '$lib/util';
-import type { PageServerLoad } from './$types';
+import { adjustStars } from '$lib/server/stars';
+import { notify } from '$lib/server/notify';
+import { fail } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
 
 // Parent overview: progress today, recent activity, pending reward requests.
 export const load: PageServerLoad = async () => {
@@ -45,4 +48,28 @@ export const load: PageServerLoad = async () => {
       cost: r.costAtTime
     }))
   };
+};
+
+export const actions: Actions = {
+  // Approve a reward request — stars were already deducted at request time.
+  approve: async ({ request }) => {
+    const id = String((await request.formData()).get('id') ?? '');
+    const r = await db.redemption.update({
+      where: { id },
+      data: { status: 'APPROVED' },
+      include: { profile: true, reward: true }
+    });
+    notify('✅ Reward approved', `${r.profile.name} — ${r.reward.title}`, ['white_check_mark']);
+    return { ok: true };
+  },
+
+  // Deny a request and refund the stars that were spent on it.
+  deny: async ({ request }) => {
+    const id = String((await request.formData()).get('id') ?? '');
+    const r = await db.redemption.findUnique({ where: { id }, include: { reward: true } });
+    if (!r) return fail(404, { error: 'Not found' });
+    await db.redemption.update({ where: { id }, data: { status: 'DENIED' } });
+    await adjustStars(r.profileId, r.costAtTime, 'BONUS', `Refund: ${r.reward.title}`);
+    return { ok: true };
+  }
 };

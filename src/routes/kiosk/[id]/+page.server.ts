@@ -34,6 +34,12 @@ export const load: PageServerLoad = async ({ params }) => {
     where: { date: day, OR: [{ profileId: profile.id }, { profileId: null }] }
   });
 
+  // Active rewards the child can spend stars on.
+  const rewards = await db.reward.findMany({
+    where: { householdId: profile.householdId, active: true },
+    orderBy: { cost: 'asc' }
+  });
+
   return {
     profile: {
       id: profile.id,
@@ -59,6 +65,7 @@ export const load: PageServerLoad = async ({ params }) => {
       }))
     })),
     reminders,
+    rewards: rewards.map((r) => ({ id: r.id, title: r.title, icon: r.icon, cost: r.cost })),
     day
   };
 };
