@@ -1,7 +1,19 @@
 <script lang="ts">
   import confetti from 'canvas-confetti';
+  import { onMount, onDestroy } from 'svelte';
   import TaskIcon from '$lib/components/TaskIcon.svelte';
   import Avatar from '$lib/components/Avatar.svelte';
+
+  type KioskTask = {
+    id: string;
+    title: string;
+    icon: string;
+    type: 'CHECKLIST' | 'TIMED' | 'NOTIFICATION';
+    stars: number;
+    durationSec: number | null;
+    promptTime: string | null;
+    done: boolean;
+  };
 
   let { data } = $props();
 
@@ -28,13 +40,13 @@
     } catch { /* TTS unavailable — silent */ }
   }
 
-  async function complete(task: { id: string; title: string; done: boolean; stars: number }) {
+  async function complete(task: KioskTask, opts: { silent?: boolean } = {}) {
     if (task.done) return;
     task.done = true; // optimistic
     stars += task.stars;
 
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
-    speak(`Great job ${data.profile.name}! ${task.title} done.`);
+    if (!opts.silent) speak(`Great job ${data.profile.name}! ${task.title} done.`);
 
     const res = await fetch('/api/complete', {
       method: 'POST',
@@ -54,6 +66,97 @@
       speak(`Amazing ${data.profile.name}! You finished everything!`);
     }
   }
+
+  // ── Timed tasks ──────────────────────────────────────────────
+  // A fullscreen countdown for TIMED tasks. Auto-completes at zero.
+  let timer = $state<{ task: KioskTask; total: number; remaining: number } | null>(null);
+  let timerHandle: ReturnType<typeof setInterval> | null = null;
+
+  const timerPct = $derived(timer ? (timer.remaining / timer.total) * 100 : 0);
+
+  function fmt(sec: number) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function startTimer(task: KioskTask) {
+    const total = task.durationSec && task.durationSec > 0 ? task.durationSec : 60;
+    timer = { task, total, remaining: total };
+    speak(`Okay ${data.profile.name}, let's do ${task.title}. Ready, go!`);
+    if (timerHandle) clearInterval(timerHandle);
+    timerHandle = setInterval(() => {
+      if (!timer) return;
+      timer.remaining -= 1;
+      if (timer.remaining <= 0) finishTimer(true);
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerHandle) clearInterval(timerHandle);
+    timerHandle = null;
+  }
+
+  async function finishTimer(reachedZero: boolean) {
+    const t = timer?.task;
+    stopTimer();
+    timer = null;
+    if (!t) return;
+    if (reachedZero) speak(`Time's up! Awesome work ${data.profile.name}!`);
+    await complete(t, { silent: true });
+  }
+
+  function cancelTimer() {
+    stopTimer();
+    timer = null;
+  }
+
+  // ── Scheduled voice prompts ──────────────────────────────────
+  // Tasks with a promptTime ("HH:MM") get a by-name voice nudge + banner
+  // when their time arrives. Fires once per task per page session.
+  const fired = new Set<string>();
+  let promptHandle: ReturnType<typeof setInterval> | null = null;
+  let banner = $state<{ title: string; icon: string } | null>(null);
+
+  function nowHHMM() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function checkPrompts() {
+    const hhmm = nowHHMM();
+    for (const r of routines) {
+      for (const t of r.tasks as KioskTask[]) {
+        if (t.done || !t.promptTime) continue;
+        const key = `${t.id}@${t.promptTime}`;
+        if (t.promptTime === hhmm && !fired.has(key)) {
+          fired.add(key);
+          banner = { title: t.title, icon: t.icon };
+          speak(`${data.profile.name}, it's time to ${t.title}.`);
+          confetti({ particleCount: 40, spread: 60, origin: { y: 0.3 } });
+          setTimeout(() => {
+            if (banner && banner.title === t.title) banner = null;
+          }, 20000);
+        }
+      }
+    }
+  }
+
+  function onTaskClick(task: KioskTask) {
+    if (task.done) return;
+    if (task.type === 'TIMED') startTimer(task);
+    else complete(task);
+  }
+
+  onMount(() => {
+    checkPrompts();
+    promptHandle = setInterval(checkPrompts, 15000);
+  });
+
+  onDestroy(() => {
+    stopTimer();
+    if (promptHandle) clearInterval(promptHandle);
+  });
 
   let shopOpen = $state(false);
   let message = $state('');
@@ -84,6 +187,14 @@
 <svelte:head><title>{data.profile.name} — Sprout</title></svelte:head>
 
 <main class={`min-h-screen bg-gradient-to-b ${themeBg[data.profile.theme] ?? 'from-sunrise-soft'} to-white p-6`}>
+  {#if banner}
+    <div class="fixed top-4 inset-x-4 z-40 rounded-2xl bg-grape text-white shadow-xl p-4 flex items-center gap-3 pop">
+      <TaskIcon icon={banner.icon} size={40} />
+      <div class="text-xl font-extrabold">🔔 {data.profile.name}, time to {banner.title}!</div>
+      <button class="ml-auto tap rounded-xl bg-white/20 px-4 font-bold" onclick={() => (banner = null)}>OK</button>
+    </div>
+  {/if}
+
   <header class="flex items-center justify-between mb-6">
     <a href="/" class="tap rounded-2xl bg-white/70 px-5 flex items-center text-2xl shadow">←</a>
     <div class="flex items-center gap-3">
@@ -159,13 +270,19 @@
             class={`tap rounded-3xl p-5 flex flex-col items-center gap-2 shadow-lg active:scale-95 transition ${
               task.done ? 'bg-forest-soft' : 'bg-white'
             }`}
-            onclick={() => complete(task)}
+            onclick={() => onTaskClick(task)}
           >
             <TaskIcon icon={task.icon} size={56} />
             <span class="text-xl font-bold text-gray-800 text-center">{task.title}</span>
             {#if task.done}
               <span class="text-3xl">✅</span>
+            {:else if task.type === 'TIMED'}
+              <span class="text-ocean font-bold">⏱ {task.durationSec ? fmt(task.durationSec) : '1:00'}</span>
+              <span class="text-amber-500 font-bold text-sm">+{task.stars} ⭐</span>
             {:else}
+              {#if task.promptTime}
+                <span class="text-grape font-bold text-sm">🔔 {task.promptTime}</span>
+              {/if}
               <span class="text-amber-500 font-bold">+{task.stars} ⭐</span>
             {/if}
           </button>
@@ -176,5 +293,43 @@
 
   {#if total === 0}
     <p class="text-center text-2xl text-gray-500 mt-12">No tasks today — go play! 🎈</p>
+  {/if}
+
+  {#if timer}
+    <div class="fixed inset-0 z-50 bg-gray-900/90 flex flex-col items-center justify-center gap-8 p-6">
+      <h2 class="text-4xl font-extrabold text-white text-center flex items-center gap-3">
+        <TaskIcon icon={timer.task.icon} size={56} /> {timer.task.title}
+      </h2>
+
+      <div class="relative h-72 w-72">
+        <svg class="h-full w-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="8" />
+          <circle
+            cx="50" cy="50" r="45" fill="none" stroke="#34d399" stroke-width="8" stroke-linecap="round"
+            stroke-dasharray="282.74"
+            stroke-dashoffset={282.74 * (1 - timerPct / 100)}
+            style="transition: stroke-dashoffset 1s linear"
+          />
+        </svg>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span class="text-6xl font-extrabold text-white tabular-nums">{fmt(timer.remaining)}</span>
+        </div>
+      </div>
+
+      <div class="flex gap-4">
+        <button
+          class="tap rounded-2xl bg-forest px-8 py-4 text-2xl font-extrabold text-white shadow-lg active:scale-95"
+          onclick={() => finishTimer(false)}
+        >
+          I'm done ✅
+        </button>
+        <button
+          class="tap rounded-2xl bg-white/20 px-8 py-4 text-2xl font-bold text-white shadow-lg active:scale-95"
+          onclick={cancelTimer}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
   {/if}
 </main>
