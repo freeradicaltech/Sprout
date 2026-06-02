@@ -15,6 +15,9 @@ export const actions: Actions = {
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
+      // Served over plain HTTP on the LAN/Tailscale — a Secure cookie would be
+      // dropped by browsers. Set SPROUT_SECURE_COOKIE=1 when behind HTTPS.
+      secure: process.env.SPROUT_SECURE_COOKIE === '1',
       maxAge: 60 * 60 * 8 // 8 hours
     });
     throw redirect(303, '/parent');

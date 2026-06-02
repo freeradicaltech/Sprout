@@ -31,7 +31,13 @@ export const actions: Actions = {
     const h = await household();
     await db.household.update({ where: { id: h.id }, data: { parentPin: pin || null } });
     // Keep current session unlocked after changing the PIN.
-    cookies.set('sprout_parent', '1', { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 8 });
+    cookies.set('sprout_parent', '1', {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.SPROUT_SECURE_COOKIE === '1',
+      maxAge: 60 * 60 * 8
+    });
     return { ok: true, pinUpdated: true, cleared: !pin };
   },
 
