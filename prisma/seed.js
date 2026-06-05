@@ -1,7 +1,14 @@
 // Seed a demo household so the kiosk is usable immediately after setup.
 // Run with: npm run db:seed
 import { PrismaClient } from '@prisma/client';
+import { scryptSync, randomBytes } from 'node:crypto';
 const db = new PrismaClient();
+
+// Mirror src/lib/server/pin.ts so the seeded PIN is stored hashed, not plain.
+function hashPin(pin) {
+  const salt = randomBytes(16);
+  return `s2$${salt.toString('hex')}$${scryptSync(pin, salt, 64).toString('hex')}`;
+}
 
 async function main() {
   // Wipe (dev convenience) — comment out to keep existing data.
@@ -16,7 +23,7 @@ async function main() {
   await db.household.deleteMany();
 
   const household = await db.household.create({
-    data: { name: 'Demo Family', parentPin: '1234' } // change/remove the PIN!
+    data: { name: 'Demo Family', parentPin: hashPin('1234') } // change/remove the PIN!
   });
 
   const everyDay = '0,1,2,3,4,5,6';

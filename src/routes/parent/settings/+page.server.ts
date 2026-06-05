@@ -1,6 +1,7 @@
 import { db } from '$lib/server/db';
 import { fail, redirect } from '@sveltejs/kit';
 import { setParentCookie, clearParentCookie } from '$lib/server/session';
+import { hashPin } from '$lib/server/pin';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -34,7 +35,10 @@ export const actions: Actions = {
     if (pin && pin !== confirm) return fail(400, { error: 'PINs do not match' });
     if (pin && !/^\d{4,8}$/.test(pin)) return fail(400, { error: 'PIN must be 4–8 digits' });
     const h = await household();
-    await db.household.update({ where: { id: h.id }, data: { parentPin: pin || null } });
+    await db.household.update({
+      where: { id: h.id },
+      data: { parentPin: pin ? hashPin(pin) : null }
+    });
     // Keep current session unlocked after changing the PIN.
     setParentCookie(cookies, h.sessionMinutes);
     return { ok: true, pinUpdated: true, cleared: !pin };
