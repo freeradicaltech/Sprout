@@ -1,13 +1,27 @@
 <script lang="ts">
   import Avatar from '$lib/components/Avatar.svelte';
+  import { onMount } from 'svelte';
   let { data } = $props();
+
+  let now = $state(new Date());
+  const time = $derived(now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }));
+  const date = $derived(now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }));
+
+  onMount(() => {
+    const id = setInterval(() => (now = new Date()), 1000);
+    return () => clearInterval(id);
+  });
 </script>
 
 <svelte:head><title>Sprout — Who's here?</title></svelte:head>
 
 <main class="min-h-screen bg-gradient-to-b from-sunrise-soft to-white p-6 flex flex-col">
-  <header class="flex items-center justify-between mb-8">
+  <header class="flex items-center justify-between mb-8 gap-4 flex-wrap">
     <h1 class="text-4xl font-extrabold text-sunrise">🌱 Sprout</h1>
+    <div class="text-center leading-tight">
+      <div class="text-4xl sm:text-5xl font-extrabold text-gray-700 tabular-nums">{time}</div>
+      <div class="text-base sm:text-lg font-bold text-gray-500">{date}</div>
+    </div>
     <a href="/parent" class="tap rounded-2xl bg-white/70 px-5 flex items-center text-lg font-bold text-gray-600 shadow">
       Parents
     </a>
