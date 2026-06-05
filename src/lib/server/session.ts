@@ -18,5 +18,14 @@ export function setParentCookie(cookies: Cookies, sessionMinutes: number) {
 }
 
 export function clearParentCookie(cookies: Cookies) {
-  cookies.delete(PARENT_COOKIE, { path: '/' });
+  // The delete cookie must carry the SAME attributes as the one we set, or the
+  // browser won't match it. In particular `secure` defaults to true in
+  // SvelteKit — over plain HTTP that Secure delete-cookie is dropped and the
+  // original session cookie survives, so the parent area never locks.
+  cookies.delete(PARENT_COOKIE, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.SPROUT_SECURE_COOKIE === '1'
+  });
 }
