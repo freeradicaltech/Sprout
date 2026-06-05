@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { setParentCookie, clearParentCookie } from '$lib/server/session';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -52,6 +52,7 @@ export const actions: Actions = {
 
   lock: async ({ cookies }) => {
     clearParentCookie(cookies);
-    return { ok: true, locked: true };
+    // Forget the PIN and drop straight back to kiosk mode.
+    throw redirect(303, '/');
   }
 };
