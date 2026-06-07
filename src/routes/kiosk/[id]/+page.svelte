@@ -123,6 +123,18 @@
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
+  // Local calendar day (YYYY-MM-DD) from the client clock. Captured at load so a
+  // kiosk left open across midnight reloads itself to pick up the daily reset.
+  function clientDay() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  const loadedDay = clientDay();
+
+  function checkDayRollover() {
+    if (clientDay() !== loadedDay) location.reload();
+  }
+
   function checkPrompts() {
     const hhmm = nowHHMM();
     for (const r of routines) {
@@ -174,7 +186,10 @@
 
   onMount(() => {
     checkPrompts();
-    promptHandle = setInterval(checkPrompts, 15000);
+    promptHandle = setInterval(() => {
+      checkDayRollover();
+      checkPrompts();
+    }, 15000);
   });
 
   onDestroy(() => {
