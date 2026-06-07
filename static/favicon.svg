@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd6a5"/>
+      <stop offset="1" stop-color="#ff8a5b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- soil -->
+  <rect x="146" y="372" width="220" height="40" rx="20" fill="#7a4b2b"/>
+  <!-- stem -->
+  <path d="M256 372 V236" stroke="#3f9b46" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <!-- left leaf -->
+  <path d="M256 300 C200 300 150 268 138 214 C198 206 250 238 256 296 Z" fill="#5ec46a"/>
+  <!-- right leaf -->
+  <path d="M256 268 C312 268 362 236 374 182 C314 174 262 206 256 264 Z" fill="#4caf52"/>
+  <!-- sprout tip -->
+  <circle cx="256" cy="214" r="20" fill="#5ec46a"/>
+</svg>
