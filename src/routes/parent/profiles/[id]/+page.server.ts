@@ -81,6 +81,45 @@ export const actions: Actions = {
     return { ok: true };
   },
 
+  moveRoutine: async ({ request, params }) => {
+    const f = await request.formData();
+    const id = String(f.get('routineId') ?? '');
+    const dir = String(f.get('dir') ?? '');
+    const siblings = await db.routine.findMany({
+      where: { profileId: params.id! },
+      orderBy: { order: 'asc' }
+    });
+    const idx = siblings.findIndex((s) => s.id === id);
+    const target = dir === 'up' ? idx - 1 : idx + 1;
+    if (idx < 0 || target < 0 || target >= siblings.length) return { ok: true };
+    [siblings[idx], siblings[target]] = [siblings[target], siblings[idx]];
+    // Re-normalise order to sequential indices.
+    await db.$transaction(
+      siblings.map((s, i) => db.routine.update({ where: { id: s.id }, data: { order: i } }))
+    );
+    return { ok: true };
+  },
+
+  moveTask: async ({ request }) => {
+    const f = await request.formData();
+    const id = String(f.get('taskId') ?? '');
+    const dir = String(f.get('dir') ?? '');
+    const task = await db.task.findUnique({ where: { id } });
+    if (!task) return fail(404, { error: 'Task not found' });
+    const siblings = await db.task.findMany({
+      where: { routineId: task.routineId },
+      orderBy: { order: 'asc' }
+    });
+    const idx = siblings.findIndex((s) => s.id === id);
+    const target = dir === 'up' ? idx - 1 : idx + 1;
+    if (idx < 0 || target < 0 || target >= siblings.length) return { ok: true };
+    [siblings[idx], siblings[target]] = [siblings[target], siblings[idx]];
+    await db.$transaction(
+      siblings.map((s, i) => db.task.update({ where: { id: s.id }, data: { order: i } }))
+    );
+    return { ok: true };
+  },
+
   addTask: async ({ request }) => {
     const f = await request.formData();
     const routineId = String(f.get('routineId') ?? '');

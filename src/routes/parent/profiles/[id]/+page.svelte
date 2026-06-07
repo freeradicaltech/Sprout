@@ -92,9 +92,21 @@
   </form>
 {/if}
 
-{#each data.profile.routines as routine (routine.id)}
+{#each data.profile.routines as routine, ri (routine.id)}
   <section class="bg-white rounded-2xl shadow p-4 mb-4">
     <div class="flex items-center gap-2 flex-wrap mb-2">
+      <div class="flex flex-col">
+        <form method="POST" action="?/moveRoutine" use:enhance>
+          <input type="hidden" name="routineId" value={routine.id} />
+          <input type="hidden" name="dir" value="up" />
+          <button class="tap leading-none text-gray-400 enabled:hover:text-gray-700 disabled:opacity-30" disabled={ri === 0} title="Move routine up">▲</button>
+        </form>
+        <form method="POST" action="?/moveRoutine" use:enhance>
+          <input type="hidden" name="routineId" value={routine.id} />
+          <input type="hidden" name="dir" value="down" />
+          <button class="tap leading-none text-gray-400 enabled:hover:text-gray-700 disabled:opacity-30" disabled={ri === data.profile.routines.length - 1} title="Move routine down">▼</button>
+        </form>
+      </div>
       <h3 class="text-xl font-bold text-gray-800">
         {routine.slot === 'AM' ? '🌅' : routine.slot === 'PM' ? '🌙' : '⭐'} {routine.name}
       </h3>
@@ -124,7 +136,7 @@
     </div>
 
     <div class="space-y-2">
-      {#each routine.tasks as task (task.id)}
+      {#each routine.tasks as task, ti (task.id)}
         {#if editTaskId === task.id}
           <form method="POST" action="?/updateTask" use:enhance={() => async ({ update }) => { await update({ reset: false }); editTaskId = null; }}
             class="bg-sunrise-soft/40 rounded-xl p-3 space-y-3">
@@ -162,6 +174,18 @@
           </form>
         {:else}
           <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-2">
+            <div class="flex flex-col">
+              <form method="POST" action="?/moveTask" use:enhance>
+                <input type="hidden" name="taskId" value={task.id} />
+                <input type="hidden" name="dir" value="up" />
+                <button class="tap leading-none text-xs text-gray-400 enabled:hover:text-gray-700 disabled:opacity-30" disabled={ti === 0} title="Move up">▲</button>
+              </form>
+              <form method="POST" action="?/moveTask" use:enhance>
+                <input type="hidden" name="taskId" value={task.id} />
+                <input type="hidden" name="dir" value="down" />
+                <button class="tap leading-none text-xs text-gray-400 enabled:hover:text-gray-700 disabled:opacity-30" disabled={ti === routine.tasks.length - 1} title="Move down">▼</button>
+              </form>
+            </div>
             <TaskIcon icon={task.icon} size={28} />
             <span class="font-bold text-gray-700">{task.title}</span>
             <span class="text-xs text-gray-400">
