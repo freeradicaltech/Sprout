@@ -1,5 +1,6 @@
 <script lang="ts">
   import Avatar from '$lib/components/Avatar.svelte';
+  import TaskIcon from '$lib/components/TaskIcon.svelte';
   import { enhance } from '$app/forms';
   let { data } = $props();
 </script>
@@ -26,6 +27,27 @@
               <button class="tap rounded-xl bg-gray-200 text-gray-700 px-4 font-bold">Deny</button>
             </form>
           </div>
+        </div>
+      {/each}
+    </div>
+  </section>
+{/if}
+
+<!-- Approved, awaiting hand-over -->
+{#if data.awaiting.length}
+  <section class="mb-6">
+    <h2 class="text-xl font-bold text-gray-700 mb-2">📦 To give</h2>
+    <div class="space-y-2">
+      {#each data.awaiting as r (r.id)}
+        <div class="bg-white rounded-2xl shadow p-4 flex items-center justify-between gap-3 flex-wrap">
+          <span class="font-bold flex items-center gap-2">
+            <TaskIcon icon={r.icon} size={28} />
+            {r.child} — <em>{r.reward}</em>
+          </span>
+          <form method="POST" action="?/fulfil" use:enhance>
+            <input type="hidden" name="id" value={r.id} />
+            <button class="tap rounded-xl bg-ocean text-white px-4 font-bold">Mark given ✅</button>
+          </form>
         </div>
       {/each}
     </div>

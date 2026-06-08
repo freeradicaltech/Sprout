@@ -2,11 +2,12 @@ import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { adjustStars } from '$lib/server/stars';
 import { notify } from '$lib/server/notify';
+import { publish } from '$lib/server/bus';
 import type { RequestHandler } from './$types';
 
 // Child requests a reward; spends stars and logs a redemption (pending parent approval).
 export const POST: RequestHandler = async ({ request }) => {
-  const { rewardId, profileId } = await request.json();
+  const { rewardId, profileId, client } = await request.json();
   if (!rewardId || !profileId) throw error(400, 'rewardId and profileId required');
 
   const [reward, profile] = await Promise.all([
@@ -22,7 +23,8 @@ export const POST: RequestHandler = async ({ request }) => {
   });
   const updated = await adjustStars(profileId, -reward.cost, 'REDEEM', reward.title);
 
-  notify('🎁 Reward requested', `${profile.name} redeemed "${reward.title}" (-${reward.cost})`, ['gift']);
+  notify('Reward requested', `${profile.name} redeemed "${reward.title}" (-${reward.cost})`, ['gift']);
+  publish({ profileId, kind: 'redeem', source: client });
 
   return json({ ok: true, stars: updated.stars });
 };

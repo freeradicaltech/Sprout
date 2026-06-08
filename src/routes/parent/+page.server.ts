@@ -28,6 +28,13 @@ export const load: PageServerLoad = async () => {
     include: { reward: true, profile: true }
   });
 
+  // Approved but not yet handed over — the "to give" list.
+  const awaiting = await db.redemption.findMany({
+    where: { status: 'APPROVED' },
+    orderBy: { createdAt: 'asc' },
+    include: { reward: true, profile: true }
+  });
+
   return {
     day,
     profiles: profiles.map((p) => {
@@ -46,6 +53,12 @@ export const load: PageServerLoad = async () => {
       child: r.profile.name,
       reward: r.reward.title,
       cost: r.costAtTime
+    })),
+    awaiting: awaiting.map((r) => ({
+      id: r.id,
+      child: r.profile.name,
+      reward: r.reward.title,
+      icon: r.reward.icon
     }))
   };
 };
@@ -59,7 +72,19 @@ export const actions: Actions = {
       data: { status: 'APPROVED' },
       include: { profile: true, reward: true }
     });
-    notify('✅ Reward approved', `${r.profile.name} — ${r.reward.title}`, ['white_check_mark']);
+    notify('Reward approved', `${r.profile.name} — ${r.reward.title} (ready to give)`, ['white_check_mark']);
+    return { ok: true };
+  },
+
+  // Mark an approved reward as actually handed over to the child.
+  fulfil: async ({ request }) => {
+    const id = String((await request.formData()).get('id') ?? '');
+    const r = await db.redemption.update({
+      where: { id },
+      data: { status: 'FULFILLED' },
+      include: { profile: true, reward: true }
+    });
+    notify('Reward given', `${r.profile.name} received ${r.reward.title} 🎉`, ['gift']);
     return { ok: true };
   },
 

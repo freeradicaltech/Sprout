@@ -17,6 +17,11 @@
 
   let { data } = $props();
 
+  // Stable per-tab id so this device ignores the live-sync echo of its own changes.
+  const clientId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : String(Math.random());
+
   // Local reactive copy so the UI updates instantly on tap.
   let routines = $state(structuredClone(data.routines));
   let stars = $state(data.profile.stars);
@@ -30,14 +35,20 @@
   const completed = $derived(routines.flatMap((r) => r.tasks).filter((t) => t.done).length);
   const allDone = $derived(total > 0 && completed === total);
 
-  function speak(text: string) {
+  // `onDone` fires when the utterance finishes (or immediately if TTS is
+  // unavailable) — used to gate the timer countdown on the intro voiceover.
+  // `queue: true` does NOT cancel current speech, so simultaneous prompts are
+  // spoken one after another instead of clobbering each other.
+  function speak(text: string, opts: { onDone?: () => void; queue?: boolean } = {}) {
     try {
+      if (typeof speechSynthesis === 'undefined') { opts.onDone?.(); return; }
       const u = new SpeechSynthesisUtterance(text);
       u.rate = 0.95;
       u.pitch = 1.1;
-      speechSynthesis.cancel();
+      if (opts.onDone) { u.onend = () => opts.onDone!(); u.onerror = () => opts.onDone!(); }
+      if (!opts.queue) speechSynthesis.cancel();
       speechSynthesis.speak(u);
-    } catch { /* TTS unavailable — silent */ }
+    } catch { opts.onDone?.(); }
   }
 
   async function complete(task: KioskTask, opts: { silent?: boolean } = {}) {
@@ -51,7 +62,7 @@
     const res = await fetch('/api/complete', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ taskId: task.id, profileId: data.profile.id })
+      body: JSON.stringify({ taskId: task.id, profileId: data.profile.id, client: clientId })
     });
     if (!res.ok) {
       task.done = false; // rollback
@@ -69,7 +80,7 @@
 
   // ── Timed tasks ──────────────────────────────────────────────
   // A fullscreen countdown for TIMED tasks. Auto-completes at zero.
-  let timer = $state<{ task: KioskTask; total: number; remaining: number } | null>(null);
+  let timer = $state<{ task: KioskTask; total: number; remaining: number; starting: boolean } | null>(null);
   let timerHandle: ReturnType<typeof setInterval> | null = null;
 
   const timerPct = $derived(timer ? (timer.remaining / timer.total) * 100 : 0);
@@ -82,14 +93,28 @@
 
   function startTimer(task: KioskTask) {
     const total = task.durationSec && task.durationSec > 0 ? task.durationSec : 60;
-    timer = { task, total, remaining: total };
-    speak(`Okay ${data.profile.name}, let's do ${task.title}. Ready, go!`);
+    timer = { task, total, remaining: total, starting: true };
     if (timerHandle) clearInterval(timerHandle);
-    timerHandle = setInterval(() => {
-      if (!timer) return;
-      timer.remaining -= 1;
-      if (timer.remaining <= 0) finishTimer(true);
-    }, 1000);
+
+    // Begin the countdown only once the intro voiceover has finished, so the
+    // clock doesn't tick during "Ready, set, go!". Guarded against double-start
+    // and against the timer being cancelled/changed while speaking.
+    let began = false;
+    const begin = () => {
+      if (began) return;
+      began = true;
+      if (!timer || timer.task.id !== task.id) return;
+      timer.starting = false;
+      timerHandle = setInterval(() => {
+        if (!timer) return;
+        timer.remaining -= 1;
+        if (timer.remaining <= 0) finishTimer(true);
+      }, 1000);
+    };
+
+    speak(`Okay ${data.profile.name}, let's do ${task.title}. Ready, set, go!`, { onDone: begin });
+    // Fallback: if TTS never signals completion (unsupported/muted), start anyway.
+    setTimeout(begin, 6000);
   }
 
   function stopTimer() {
@@ -144,7 +169,9 @@
         if (t.promptTime === hhmm && !fired.has(key)) {
           fired.add(key);
           banner = { title: t.title, icon: t.icon };
-          speak(`${data.profile.name}, it's time to ${t.title}.`);
+          // queue: don't cancel — if several prompts fire at the same minute
+          // they're spoken back-to-back rather than cutting each other off.
+          speak(`${data.profile.name}, it's time to ${t.title}.`, { queue: true });
           confetti({ particleCount: 40, spread: 60, origin: { y: 0.3 } });
           setTimeout(() => {
             if (banner && banner.title === t.title) banner = null;
@@ -164,7 +191,7 @@
     const res = await fetch('/api/uncomplete', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ taskId: task.id, profileId: data.profile.id })
+      body: JSON.stringify({ taskId: task.id, profileId: data.profile.id, client: clientId })
     });
     if (!res.ok) {
       task.done = true; // rollback
@@ -184,17 +211,37 @@
     else complete(task);
   }
 
+  // ── Live multi-device sync ───────────────────────────────────
+  // Subscribe to server events for this child; when another device changes
+  // something, refresh. Ignore our own echoes and don't interrupt a countdown.
+  let es: EventSource | null = null;
+
+  function startSync() {
+    try {
+      es = new EventSource(`/api/events?profile=${data.profile.id}`);
+      es.onmessage = (ev) => {
+        let e: { source?: string } = {};
+        try { e = JSON.parse(ev.data); } catch { return; }
+        if (e.source === clientId) return; // our own change
+        if (timer) return; // don't yank a child out of a running countdown
+        location.reload();
+      };
+    } catch { /* SSE unsupported — sync simply off */ }
+  }
+
   onMount(() => {
     checkPrompts();
     promptHandle = setInterval(() => {
       checkDayRollover();
       checkPrompts();
     }, 15000);
+    startSync();
   });
 
   onDestroy(() => {
     stopTimer();
     if (promptHandle) clearInterval(promptHandle);
+    es?.close();
   });
 
   let shopOpen = $state(false);
@@ -209,7 +256,7 @@
     const res = await fetch('/api/redeem', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ rewardId: reward.id, profileId: data.profile.id })
+      body: JSON.stringify({ rewardId: reward.id, profileId: data.profile.id, client: clientId })
     });
     if (res.ok) {
       const j = await res.json();
@@ -352,7 +399,11 @@
           />
         </svg>
         <div class="absolute inset-0 flex items-center justify-center">
-          <span class="text-6xl font-extrabold text-white tabular-nums">{fmt(timer.remaining)}</span>
+          {#if timer.starting}
+            <span class="text-4xl font-extrabold text-white animate-pulse">Get ready…</span>
+          {:else}
+            <span class="text-6xl font-extrabold text-white tabular-nums">{fmt(timer.remaining)}</span>
+          {/if}
         </div>
       </div>
 

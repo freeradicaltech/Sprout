@@ -5,6 +5,7 @@
     { href: '/parent', label: 'Dashboard', icon: '📊' },
     { href: '/parent/profiles', label: 'Kids', icon: '👧' },
     { href: '/parent/rewards', label: 'Rewards', icon: '🎁' },
+    { href: '/parent/history', label: 'History', icon: '🔥' },
     { href: '/parent/reminders', label: 'Reminders', icon: '📅' },
     { href: '/parent/settings', label: 'Settings', icon: '⚙️' }
   ];

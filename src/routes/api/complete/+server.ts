@@ -2,12 +2,13 @@ import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { adjustStars } from '$lib/server/stars';
 import { notify } from '$lib/server/notify';
+import { publish } from '$lib/server/bus';
 import { localDay } from '$lib/util';
 import type { RequestHandler } from './$types';
 
 // Mark a task complete for today and award its stars (idempotent per day).
 export const POST: RequestHandler = async ({ request }) => {
-  const { taskId, profileId } = await request.json();
+  const { taskId, profileId, client } = await request.json();
   if (!taskId || !profileId) throw error(400, 'taskId and profileId required');
 
   const task = await db.task.findUnique({ where: { id: taskId } });
@@ -27,7 +28,8 @@ export const POST: RequestHandler = async ({ request }) => {
   await db.taskCompletion.create({ data: { taskId, day } });
   const profile = await adjustStars(profileId, task.stars, 'TASK', task.title);
 
-  notify('⭐ Star earned', `${profile.name} completed "${task.title}" (+${task.stars})`, ['star']);
+  notify('Star earned', `${profile.name} completed "${task.title}" (+${task.stars})`, ['star']);
+  publish({ profileId, kind: 'task', source: client });
 
   return json({ ok: true, stars: profile.stars });
 };
