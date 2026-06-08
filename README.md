@@ -120,15 +120,18 @@ Shipped:
 - [x] Live clock on the homescreen; auto-reload at local midnight for the daily reset
 - [x] ntfy push (star earned / reward requested)
 - [x] Hashed PINs (scrypt) + Secure session cookie behind HTTPS
+- [x] Background prompts: server-side scheduler pushes scheduled reminders via ntfy even with no kiosk open
+- [x] History & streaks view per child + weekly Sunday summary notification
+- [x] Live multi-device sync (SSE) — kiosks refresh when another device makes a change
+- [x] Reward fulfilment: "to give" list + Mark-given action with notification
+- [x] Timed-task countdown waits for the intro voiceover before counting; simultaneous prompts queue
 
 Next up:
 
-- [ ] Background prompts via service worker (fire scheduled voice/notify when the kiosk tab is closed)
-- [ ] History & streaks view per child; weekly summary notification
-- [ ] Live multi-device sync (SSE/WebSocket) so several tablets stay current in real time
-- [ ] Reward fulfilment tracking + notification when a redemption is approved
+- [ ] On-tablet background prompts via service worker / web-push (current background prompts are phone push via ntfy)
 - [ ] Themes, per-profile music & richer avatars (SVG/Lottie); drag-handle reordering
 - [ ] Per-profile PINs / handoff; optional "teen" feature set
+- [ ] Granular live sync (patch state in place instead of full reload); parent dashboard live updates
 - [ ] Docker/CI polish + public GitHub mirror at MVP
 
 ## Security note
