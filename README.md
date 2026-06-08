@@ -9,9 +9,11 @@ earn ⭐ stars with confetti + voice praise, and spend stars on rewards you defi
 Parents manage everything from a PIN-protected dashboard and get push notifications
 via self-hosted [ntfy](https://ntfy.sh) — no $50/yr parent app required.
 
-> Status: **early scaffold**. The kiosk, star ledger, task completion, reward
-> redemption and notifications are wired end-to-end. Parent CRUD UI, timers,
-> scheduled voice prompts and live sync are on the roadmap below.
+> Status: **working beta**. Kiosk, star ledger, task completion, reward shop +
+> approval, full parent CRUD, timed-task countdowns, scheduled voice prompts,
+> hashed PINs and ntfy notifications are wired end-to-end and running on a LAN
+> deployment behind HTTPS. Background prompts, live multi-device sync and a
+> history/streaks view are the main items left — see the roadmap below.
 
 ---
 
@@ -80,8 +82,13 @@ Point Sprout at your ntfy server and subscribe on your phone:
 ```env
 NTFY_URL=https://ntfy.your.domain
 NTFY_TOPIC=sprout
-NTFY_TOKEN=tk_xxx   # only if the topic is protected
+NTFY_TOKEN=tk_xxx   # only if the topic is protected (default-deny servers)
 ```
+
+Sprout publishes on two events: a ⭐ **star earned** (task completed) and a 🎁
+**reward requested** (kid redeems). Subscribe to the topic in the ntfy app to
+get them on your phone. Notifications are optional — if `NTFY_URL`/`NTFY_TOPIC`
+are unset, the app simply skips them.
 
 ---
 
@@ -101,23 +108,37 @@ src/lib/server/             db, stars ledger, ntfy notify
 
 ## Roadmap (to Nelli parity and beyond)
 
+Shipped:
+
 - [x] Parent CRUD UI: profiles, routines, tasks, rewards, reminders
 - [x] Reward approval / deny (with star refund) flow in the dashboard
 - [x] Kiosk reward shop — kids spend stars; bonus/penalty stars from parent
-- [x] Parent settings: family name, set/change/remove PIN, lock session
-- [ ] Timed-task countdown UI + scheduled NOTIFICATION voice prompts (service worker)
-- [ ] Task duplication across kids; reorder routines/tasks (drag handle)
-- [ ] Themes, per-profile music & richer avatars (SVG/Lottie)
-- [ ] Live multi-device sync (SSE/WebSocket) so several tablets stay current
-- [ ] History & streaks view; weekly summary notification
+- [x] Parent settings: family name, set/change/remove PIN, configurable auto-lock
+- [x] Timed-task countdown UI + scheduled NOTIFICATION voice prompts (while kiosk open)
+- [x] Edit tasks in place; copy a routine to another child / all kids
+- [x] Reorder routines & tasks (up/down controls)
+- [x] Live clock on the homescreen; auto-reload at local midnight for the daily reset
+- [x] ntfy push (star earned / reward requested)
+- [x] Hashed PINs (scrypt) + Secure session cookie behind HTTPS
+
+Next up:
+
+- [ ] Background prompts via service worker (fire scheduled voice/notify when the kiosk tab is closed)
+- [ ] History & streaks view per child; weekly summary notification
+- [ ] Live multi-device sync (SSE/WebSocket) so several tablets stay current in real time
+- [ ] Reward fulfilment tracking + notification when a redemption is approved
+- [ ] Themes, per-profile music & richer avatars (SVG/Lottie); drag-handle reordering
 - [ ] Per-profile PINs / handoff; optional "teen" feature set
-- [ ] Hardened auth + hashed PINs (currently plain-text for single-household LAN use)
+- [ ] Docker/CI polish + public GitHub mirror at MVP
 
 ## Security note
 
-The parent PIN is stored and compared in plain text and the session is a simple
-cookie — fine for a single household on a trusted LAN/Tailscale, **not** for
-public internet exposure. Hashing + real sessions are on the roadmap.
+The parent PIN is stored hashed (scrypt) and the parent area is gated by a
+PIN with a configurable auto-lock. Served behind HTTPS the session cookie is
+marked `Secure`. The session is still a single shared cookie (one parent role
+per household), which is fine for a single household on a trusted LAN/Tailscale.
+Per-profile auth and full session management are on the roadmap; review before
+any public internet exposure.
 
 ## License
 
