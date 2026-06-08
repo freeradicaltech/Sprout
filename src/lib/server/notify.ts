@@ -8,14 +8,21 @@ const URL = process.env.NTFY_URL;
 const TOPIC = process.env.NTFY_TOPIC;
 const TOKEN = process.env.NTFY_TOKEN;
 
+// HTTP header values must be Latin-1 (ByteString); emoji/other multibyte chars
+// in the Title make fetch throw, so strip them — the icon comes from the named
+// `Tags` header anyway. The message body is UTF-8 and is left untouched.
+function headerSafe(s: string): string {
+  return s.replace(/[^ -ÿ]/g, '').trim();
+}
+
 export async function notify(title: string, message: string, tags: string[] = []): Promise<void> {
   if (!URL || !TOPIC) return; // notifications optional — no-op if unconfigured
   try {
     await fetch(`${URL.replace(/\/$/, '')}/${TOPIC}`, {
       method: 'POST',
       headers: {
-        Title: title,
-        Tags: tags.join(','),
+        Title: headerSafe(title) || 'Sprout',
+        Tags: tags.map(headerSafe).filter(Boolean).join(','),
         ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {})
       },
       body: message
